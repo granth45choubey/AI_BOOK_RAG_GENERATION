@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Modular RAG Backend
 
 A production-ready **Retrieval-Augmented Generation** (RAG) backend built with:
@@ -247,3 +248,7 @@ python test_api.py
 | `model not found` | Run `ollama pull llama3.1:8b` and `ollama pull nomic-embed-text` |
 | ChromaDB errors | Delete `./chroma_db` folder and restart |
 | `pymupdf` import error | Run `pip install pymupdf` |
+=======
+# AI_BOOK_RAG_GENERATION
+AI-powered book generation system using RAG, enabling users to transform documents, research papers, and context into structured, editable books.
+>>>>>>> c0be8fe73b61c6dd92db10ab6052085c928befc8
