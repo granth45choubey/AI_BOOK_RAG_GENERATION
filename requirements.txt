@@ -1,0 +1,25 @@
+# ── Core web framework ────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9          # File upload support
+
+# ── LangChain stack ───────────────────────────────────────────────────────────
+# Let pip resolve a compatible set across langchain, langchain-core, langchain-community, langchain-ollama
+langchain>=0.2.5
+langchain-community>=0.2.5
+langchain-ollama>=0.1.1          # ChatOllama + OllamaEmbeddings
+
+# ── Vector store ──────────────────────────────────────────────────────────────
+chromadb>=0.5.3
+
+# ── Document parsing ──────────────────────────────────────────────────────────
+pymupdf>=1.24.5                  # PDF  (imported as fitz)
+python-docx>=1.1.2               # DOCX
+
+# ── Config ────────────────────────────────────────────────────────────────────
+pydantic-settings>=2.3.1
+python-dotenv>=1.0.1
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+httpx>=0.27.0                    # async HTTP (used internally by LangChain)
+tenacity>=8.3.0                  # retry logic
