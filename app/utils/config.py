@@ -20,6 +20,21 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "./chroma_db"
     chroma_collection_name: str = "rag_documents"
 
+    # ── Competitor Analysis ───────────────────────────────────────────────────
+    competitor_collection_name: str = "competitor_docs"
+    competitor_upload_dir: str = "./competitor_docs"
+    max_competitor_books: int = 10         # hard ceiling; 5 is soft default
+
+    # ── Author Knowledge Ingestion ────────────────────────────────────────────
+    author_upload_dir: str = "./author_docs"
+    # JSON file that survives server restarts
+    outline_store_path: str = "./author_docs/chapter_outline.json"
+
+    # ── Layered retrieval top-k (per source type) ─────────────────────────────
+    author_top_k: int = 3
+    competitor_top_k: int = 2
+    general_top_k: int = 3
+
     # ── Chunking ─────────────────────────────────────────────────────────────
     # "recursive" or "semantic"
     chunk_strategy: str = "recursive"

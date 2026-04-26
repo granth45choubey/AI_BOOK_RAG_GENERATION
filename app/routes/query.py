@@ -38,6 +38,7 @@ class ChunkResult(BaseModel):
     page: int
     chunk_index: int
     score: float
+    source_type: Optional[str] = None
 
 
 class QueryResponse(BaseModel):

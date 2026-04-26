@@ -1,91 +1,109 @@
 """
-Query service.
+Query service — updated with layered retrieval path.
 
-Orchestrates: embed query → retrieve chunks → filter by score → inject book
-context (if set) → generate answer.
+Pipeline selection:
+  - If author docs, book context, or outline are present → structured generation
+    (generate_answer_structured with priority-ordered StructuredContext)
+  - Otherwise → existing flat retrieval + generate_answer (backward compat)
 """
 from __future__ import annotations
 
 import logging
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from app.rag_pipeline.retriever import retrieve_chunks
-from app.rag_pipeline.generator import generate_answer
+from app.rag_pipeline.generator import generate_answer, generate_answer_structured
+from app.rag_pipeline.retriever import retrieve_chunks, retrieve_layered
 from app.services.book_context_service import get_active_book_context
 from app.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Minimum cosine-similarity score to consider a chunk relevant.
-# Chunks below this threshold are dropped before going to the LLM.
-MIN_SCORE: float = 0.10
-# Fallback: always pass at least this many chunks even if all are below threshold
-FALLBACK_TOP_N: int = 3
+MIN_SCORE:      float = 0.10
+FALLBACK_TOP_N: int   = 3
 
 
 def answer_query(
     question: str,
-    top_k: int | None = None,
-    source_filter: str | None = None,
+    top_k: Optional[int] = None,
+    source_filter: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Full RAG query pipeline.
 
+    Uses the layered (priority-ordered) retrieval path when priority content
+    (author docs / book context / outline) is available; falls back to the
+    original flat retrieval otherwise to maintain backward compatibility.
+
     Parameters
     ----------
-    question : user's question
-    top_k : number of context chunks to retrieve
-    source_filter : restrict to a specific source filename (optional)
+    question      : user's question / writing task
+    top_k         : number of general chunks to retrieve (used in fallback path)
+    source_filter : restrict retrieval to a specific source filename (fallback path)
 
     Returns
     -------
-    dict with answer, sources, and retrieved chunks
+    dict: {question, answer, sources, retrieved_chunks}
     """
-    top_k = top_k or settings.retrieval_top_k
-    filter_meta = {"source": source_filter} if source_filter else None
+    # ── Layered retrieval ─────────────────────────────────────────────────────
+    ctx = retrieve_layered(question)
 
-    # ── Retrieve ─────────────────────────────────────────────────────────────
-    chunks = retrieve_chunks(query=question, top_k=top_k, filter_metadata=filter_meta)
-
-    # ── Filter by relevance score ─────────────────────────────────────────────
-    if chunks:
-        good_chunks = [c for c in chunks if c["score"] >= MIN_SCORE]
-        if good_chunks:
-            chunks = good_chunks
-        else:
-            # All chunks are low-quality — still pass the best ones so the LLM
-            # can attempt an answer rather than failing silently.
-            logger.warning(
-                "All %d retrieved chunks scored below %.2f — using top-%d as fallback.",
-                len(chunks), MIN_SCORE, FALLBACK_TOP_N,
-            )
-            chunks = chunks[:FALLBACK_TOP_N]
-
-    logger.info(
-        "Passing %d chunks to LLM for question: %.60s…", len(chunks), question
+    has_priority = bool(
+        ctx.author_chunks
+        or ctx.book_context_text
+        or ctx.outline_text
     )
 
-    # ── Fetch active book context (if set) ──────────────────────────────────
-    book_context = get_active_book_context()
-    if book_context:
-        logger.info("Book context active — injecting into prompt.")
+    if has_priority:
+        # ── Structured generation (enhanced path) ─────────────────────────────
+        logger.info(
+            "Using structured generation path "
+            "(author=%d, ctx=%s, outline=%s, competitor=%d, general=%d).",
+            len(ctx.author_chunks),
+            "yes" if ctx.book_context_text else "no",
+            "yes" if ctx.outline_text else "no",
+            len(ctx.competitor_chunks),
+            len(ctx.general_chunks),
+        )
+        answer     = generate_answer_structured(question, ctx)
+        all_chunks = ctx.author_chunks + ctx.competitor_chunks + ctx.general_chunks
 
-    # ── Generate ───────────────────────────────────────────────────────────────
-    answer = generate_answer(question, chunks, book_context=book_context)
+    else:
+        # ── Fallback: original flat retrieval (backward compat) ───────────────
+        logger.info("No priority context found — using flat retrieval (backward compat).")
+        top_k       = top_k or settings.retrieval_top_k
+        filter_meta = {"source": source_filter} if source_filter else None
 
-    # ── Build source citations ────────────────────────────────────────────────
-    seen: set = set()
+        chunks = retrieve_chunks(query=question, top_k=top_k, filter_metadata=filter_meta)
+
+        if chunks:
+            good = [c for c in chunks if c["score"] >= MIN_SCORE]
+            chunks = good if good else chunks[:FALLBACK_TOP_N]
+            if not good:
+                logger.warning(
+                    "All %d chunks scored below %.2f — using top-%d as fallback.",
+                    len(chunks), MIN_SCORE, FALLBACK_TOP_N,
+                )
+
+        book_context = get_active_book_context()
+        if book_context:
+            logger.info("Book context active — injecting into flat prompt.")
+
+        answer     = generate_answer(question, chunks, book_context=book_context)
+        all_chunks = chunks
+
+    # ── Build deduplicated source citations ───────────────────────────────────
+    seen:    set              = set()
     sources: List[Dict[str, Any]] = []
-    for c in chunks:
-        key = (c["source"], c["page"])
+    for c in all_chunks:
+        key = (c.get("source", ""), c.get("page", 0))
         if key not in seen:
             seen.add(key)
-            sources.append({"source": c["source"], "page": c["page"]})
+            sources.append({"source": c.get("source", ""), "page": c.get("page", 0)})
 
     return {
-        "question": question,
-        "answer": answer,
-        "sources": sources,
-        "retrieved_chunks": chunks,
+        "question":         question,
+        "answer":           answer,
+        "sources":          sources,
+        "retrieved_chunks": all_chunks,
     }

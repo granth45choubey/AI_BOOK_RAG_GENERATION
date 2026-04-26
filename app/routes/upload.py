@@ -10,7 +10,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from app.services.document_service import ingest_documents_sync
@@ -28,7 +28,7 @@ _ingest_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="ingest"
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_documents(
-    files: List[UploadFile] = File(..., description="PDF, DOCX, or TXT files"),
+    files: List[UploadFile] = File(default=[], description="PDF, DOCX, or TXT files"),
 ):
     """
     Upload one or more documents for ingestion into the RAG knowledge base.
@@ -54,7 +54,7 @@ async def upload_documents(
         file_data.append({"filename": f.filename, "content": content})
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         summary = await loop.run_in_executor(
             _ingest_executor,
             ingest_documents_sync,

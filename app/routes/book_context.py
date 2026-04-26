@@ -23,36 +23,29 @@ router = APIRouter(prefix="/create-book-context", tags=["Book Context"])
 # ── Request / Response schemas ────────────────────────────────────────────────
 
 class BookContextRequest(BaseModel):
-    title: str = Field(..., min_length=1, description="Book title")
-    subtitle: Optional[str] = Field(default="", description="Optional subtitle")
-    target_audience: str = Field(..., min_length=1, description="Who the book is written for")
-    author_objective: str = Field(..., min_length=1, description="What the author aims to achieve")
-    reader_transformation: str = Field(
-        ..., min_length=1,
-        description="How the reader will be transformed by reading this book"
-    )
-    initial_state: str = Field(
-        ..., min_length=1,
-        description="The reader's knowledge / mindset BEFORE reading"
-    )
-    final_state: str = Field(
-        ..., min_length=1,
-        description="The reader's knowledge / mindset AFTER reading"
-    )
-    tone: str = Field(..., min_length=1, description="Writing tone and style (e.g. 'authoritative yet approachable')")
+    # ── Required ───────────────────────────────────────────────────────────
+    title:           str  = Field(..., min_length=1, description="Book title")
+    target_audience: str  = Field(..., min_length=1, description="Who the book is written for")
+    # ── Optional (LLM-inferred if omitted) ───────────────────────────────────
+    subtitle:              Optional[str] = Field(default=None, description="Optional subtitle")
+    author_objective:      Optional[str] = Field(default=None, description="What the author aims to achieve (auto-inferred if blank)")
+    reader_transformation: Optional[str] = Field(default=None, description="How the reader is transformed (auto-inferred if blank)")
+    initial_state:         Optional[str] = Field(default=None, description="Reader's knowledge before reading (auto-inferred if blank)")
+    final_state:           Optional[str] = Field(default=None, description="Reader's knowledge after reading (auto-inferred if blank)")
+    tone:                  Optional[str] = Field(default=None, description="Writing tone and style (auto-inferred if blank)")
 
 
 class BookContextResponse(BaseModel):
-    message: str
-    context_text: str
-    title: str
-    subtitle: str
-    target_audience: str
-    author_objective: str
+    message:               str
+    context_text:          str
+    title:                 str
+    subtitle:              str
+    target_audience:       str
+    author_objective:      str
     reader_transformation: str
-    initial_state: str
-    final_state: str
-    tone: str
+    initial_state:         str
+    final_state:           str
+    tone:                  str
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -75,8 +68,8 @@ def create_context(body: BookContextRequest):
     try:
         result = create_book_context(
             title=body.title,
-            subtitle=body.subtitle or "",
             target_audience=body.target_audience,
+            subtitle=body.subtitle,
             author_objective=body.author_objective,
             reader_transformation=body.reader_transformation,
             initial_state=body.initial_state,

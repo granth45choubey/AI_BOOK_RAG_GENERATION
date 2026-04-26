@@ -173,3 +173,94 @@ def generate_answer(
     except Exception as exc:
         logger.error("LLM generation failed: %s", exc)
         raise
+
+
+# ── Priority-based structured generation ──────────────────────────────────────────────────
+
+_STRUCTURED_SYSTEM = """\
+You are an AI book writing assistant.
+
+Follow these priorities STRICTLY:
+1. Author-provided documents (highest priority)
+2. Book context (title, audience, transformation)
+3. Chapter outline (if provided)
+4. Competitor insights (for differentiation only)
+5. Retrieved knowledge base
+
+Guidelines:
+- Do NOT generate generic content.
+- Maintain consistency with the author's intent and voice.
+- Respect the provided structure at all times.
+- If a chapter outline exists → do NOT alter it; generate content that fits within it.
+- Cite sources in-line using (Source: <filename>, Page <N>).
+- Never fabricate information not present in the provided context.
+"""
+
+_STRUCTURED_HUMAN = """\
+## Writing Task / Question
+{question}
+
+---
+{author_section}{book_context_section}{outline_section}{competitor_section}{general_section}
+## Response (aligned with author intent and book context)
+"""
+
+_STRUCTURED_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", _STRUCTURED_SYSTEM),
+    ("human",  _STRUCTURED_HUMAN),
+])
+
+
+def _fmt_chunks(chunks: List[Dict[str, Any]], label: str) -> str:
+    """Format a list of retrieved chunks into a labeled section string."""
+    if not chunks:
+        return ""
+    lines = [f"## {label}\n"]
+    for i, c in enumerate(chunks, 1):
+        lines.append(
+            f"[{i}] {c['text']}\n"
+            f"    (Source: {c['source']}, Page {c.get('page', '?')})"
+        )
+    return "\n".join(lines) + "\n\n"
+
+
+def generate_answer_structured(question: str, ctx: "StructuredContext") -> str:  # noqa: F821
+    """
+    Generate an answer using the priority-ordered StructuredContext.
+
+    Priority order in the prompt:
+      author docs → book context → outline → competitor insights → general knowledge
+
+    Falls back gracefully when any layer is empty.
+    """
+    from app.rag_pipeline.retriever import StructuredContext  # local import avoids circular dep
+
+    author_section      = _fmt_chunks(ctx.author_chunks,     "Author-Provided Content (Highest Priority)")
+    book_context_section = f"## Book Context\n{ctx.book_context_text}\n\n" if ctx.book_context_text else ""
+    outline_section     = f"## Chapter Outline (Follow Strictly)\n{ctx.outline_text}\n\n" if ctx.outline_text else ""
+    competitor_section  = _fmt_chunks(ctx.competitor_chunks, "Competitor Insights (Differentiation Reference Only)")
+    general_section     = _fmt_chunks(ctx.general_chunks,    "Retrieved Knowledge Base")
+
+    has_any = any([
+        ctx.author_chunks, ctx.book_context_text,
+        ctx.outline_text, ctx.general_chunks,
+    ])
+    if not has_any:
+        return (
+            "No relevant context found in the knowledge base. "
+            "Please upload documents or set a book context first."
+        )
+
+    chain = _STRUCTURED_PROMPT | _get_llm() | StrOutputParser()
+    try:
+        return chain.invoke({
+            "question":             question,
+            "author_section":       author_section,
+            "book_context_section": book_context_section,
+            "outline_section":      outline_section,
+            "competitor_section":   competitor_section,
+            "general_section":      general_section,
+        })
+    except Exception as exc:
+        logger.error("Structured LLM generation failed: %s", exc)
+        raise
