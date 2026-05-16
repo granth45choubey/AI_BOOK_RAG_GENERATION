@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import upload, query, book_context, competitor, author_docs, chapter_outline
+from app.routes import originality, template, draft_export, orchestrate
 from app.utils.config import get_settings
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -72,6 +73,10 @@ app.include_router(book_context.router)
 app.include_router(competitor.router)
 app.include_router(author_docs.router)
 app.include_router(chapter_outline.router)
+app.include_router(originality.router)
+app.include_router(template.router)
+app.include_router(draft_export.router)
+app.include_router(orchestrate.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -79,7 +84,8 @@ app.include_router(chapter_outline.router)
 def health_check():
     return {
         "status": "ok",
-        "llm_model": settings.ollama_model,
+        "llm_provider": settings.llm_provider,
+        "llm_model": settings.llm_reasoning_model or settings.ollama_model,
         "embedding_model": settings.embedding_model,
         "chunk_strategy": settings.chunk_strategy,
     }

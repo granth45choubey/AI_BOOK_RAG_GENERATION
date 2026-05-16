@@ -1,0 +1,49 @@
+{
+  "chapters": [
+    {
+      "title": "Introduction",
+      "sections": [
+        {
+          "title": "Purpose",
+          "description": null
+        }
+      ]
+    },
+    {
+      "title": "Problem Framing",
+      "sections": [
+        {
+          "title": "Purpose",
+          "description": null
+        }
+      ]
+    },
+    {
+      "title": "Core Concepts",
+      "sections": [
+        {
+          "title": "Purpose",
+          "description": null
+        }
+      ]
+    },
+    {
+      "title": "Case Studies",
+      "sections": [
+        {
+          "title": "Purpose",
+          "description": null
+        }
+      ]
+    },
+    {
+      "title": "Conclusion",
+      "sections": [
+        {
+          "title": "Purpose",
+          "description": null
+        }
+      ]
+    }
+  ]
+}

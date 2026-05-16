@@ -7,3 +7,7 @@ __pycache__/
 .cache/
 chroma_db/
 uploaded_docs/
+goal.md
+talk/
+job_store.sqlite3
+drafts/

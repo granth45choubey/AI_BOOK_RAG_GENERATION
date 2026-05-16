@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from app.rag_pipeline.embedder import get_embedding_function
 from app.rag_pipeline.retriever import get_collection
+from app.services.template_service import get_selected_template, list_templates
 from app.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,13 @@ class Chapter(BaseModel):
 
 
 class ChapterOutlineRequest(BaseModel):
+    chapters: List[Chapter]
+
+
+class OutlinePrefillResponse(BaseModel):
+    template_id: str
+    template_name: str
+    parameters: Dict[str, Any] = {}
     chapters: List[Chapter]
 
 
@@ -132,6 +140,37 @@ def get_outline_text() -> Optional[str]:
         return None
     chapters = [Chapter(**ch) for ch in outline.get("chapters", [])]
     return _format_outline_text(chapters)
+
+
+def prefill_outline_from_template() -> Optional[OutlinePrefillResponse]:
+    selected = get_selected_template()
+    if not selected:
+        return None
+
+    templates = {t.id: t for t in list_templates()}
+    template = templates.get(selected.get("template_id"))
+    if not template:
+        return None
+
+    audience = selected.get("parameters", {}).get("audience")
+    tone = selected.get("parameters", {}).get("tone")
+    desc = []
+    if audience:
+        desc.append(f"Audience: {audience}")
+    if tone:
+        desc.append(f"Tone: {tone}")
+    desc_text = " | ".join(desc) if desc else None
+
+    chapters = [
+        Chapter(title=title, sections=[ChapterSection(title="Purpose", description=desc_text)])
+        for title in template.sections
+    ]
+    return OutlinePrefillResponse(
+        template_id=template.id,
+        template_name=template.name,
+        parameters=selected.get("parameters", {}),
+        chapters=chapters,
+    )
 
 
 def delete_outline() -> bool:

@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from app.rag_pipeline.generator import generate_answer, generate_answer_structured
 from app.rag_pipeline.retriever import retrieve_chunks, retrieve_layered
 from app.services.book_context_service import get_active_book_context
+from app.services.originality_service import check_originality
 from app.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -101,9 +102,16 @@ def answer_query(
             seen.add(key)
             sources.append({"source": c.get("source", ""), "page": c.get("page", 0)})
 
+    originality_report = None
+    try:
+        originality_report = check_originality(answer)
+    except Exception as exc:
+        logger.warning("Originality check failed: %s", exc)
+
     return {
         "question":         question,
         "answer":           answer,
         "sources":          sources,
         "retrieved_chunks": all_chunks,
+        "originality_report": originality_report,
     }

@@ -13,11 +13,11 @@ import logging
 from functools import lru_cache
 from typing import List, Dict, Any, Optional
 
-from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from app.utils.config import get_settings
+from app.rag_pipeline.llm_router import get_llm
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -102,13 +102,8 @@ _BOOK_PROMPT = ChatPromptTemplate.from_messages([
 # ── LLM ───────────────────────────────────────────────────────────────────────
 
 @lru_cache(maxsize=1)
-def _get_llm() -> ChatOllama:
-    logger.info("LLM: Ollama | model: %s | url: %s", settings.ollama_model, settings.ollama_base_url)
-    return ChatOllama(
-        model=settings.ollama_model,
-        base_url=settings.ollama_base_url,
-        temperature=0.3,
-    )
+def _get_llm():
+    return get_llm("reasoning")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────

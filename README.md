@@ -1,7 +1,10 @@
-<<<<<<< HEAD
-# Modular RAG Backend
+# AI Book RAG Generation
 
-A production-ready **Retrieval-Augmented Generation** (RAG) backend built with:
+AI-powered book generation system using RAG, enabling users to transform
+documents, research papers, and context into structured, editable books.
+
+Core backend is a production-ready **Retrieval-Augmented Generation** (RAG)
+service built with:
 
 | Component | Technology |
 |---|---|
@@ -18,7 +21,7 @@ A production-ready **Retrieval-Augmented Generation** (RAG) backend built with:
 ## Project Structure
 
 ```
-RAG_Book_Generator/
+AI_BOOK_RAG_GENERATION/
 ├── app/
 │   ├── main.py                  # FastAPI app entry point
 │   ├── rag_pipeline/
@@ -28,15 +31,24 @@ RAG_Book_Generator/
 │   │   └── generator.py        # Ollama LLM answer generation
 │   ├── services/
 │   │   ├── document_service.py  # Ingestion orchestrator
-│   │   └── query_service.py     # Query orchestrator
+│   │   ├── query_service.py     # Query orchestrator
+│   │   ├── author_service.py    # Author docs ingestion
+│   │   ├── book_context_service.py # Book context storage
+│   │   ├── competitor_service.py   # Competitor analysis jobs
+│   │   └── outline_service.py      # Chapter outline persistence
 │   ├── routes/
 │   │   ├── upload.py            # POST /upload-documents
 │   │   └── query.py             # POST /query
+│   │   ├── book_context.py       # POST /create-book-context
+│   │   ├── author_docs.py        # POST /upload-author-documents
+│   │   ├── competitor.py         # POST /analyze-competitors
+│   │   └── chapter_outline.py    # POST /set-chapter-outline
 │   └── utils/
 │       ├── config.py            # Pydantic settings (env-driven)
 │       └── file_parser.py       # PDF / DOCX / TXT parsers
 ├── requirements.txt
 ├── .env.example
+├── streamlit_app.py
 └── README.md
 ```
 
@@ -69,7 +81,7 @@ ollama list
 
 ### Step 1 — Clone / navigate to project
 ```powershell
-cd "c:\Users\ASUS\OneDrive\Desktop\RAG_Book_Generator"
+cd "f:\D_backup\Work\GlobalBook\AI_BOOK_RAG_GENERATION"
 ```
 
 ### Step 2 — Create virtual environment
@@ -98,6 +110,28 @@ Open your browser at:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 - **Health check**: http://localhost:8000/health
+
+---
+
+## Dev Workflow
+
+### Run backend + UI
+```powershell
+# Terminal 1
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2
+streamlit run streamlit_app.py
+```
+
+### Quick smoke test
+```powershell
+python test_api.py
+```
+
+### Environment variables
+- Copy `.env.example` to `.env` for local overrides.
+- Keep `OLLAMA_BASE_URL` and model names aligned with your Ollama install.
 
 ---
 
@@ -185,6 +219,52 @@ Ask a question against the ingested knowledge base.
 
 ---
 
+### `POST /create-book-context`
+
+Create or update the active book context (title, audience, tone, etc.).
+
+### `POST /upload-author-documents`
+
+Upload author-specific content that should have highest retrieval priority.
+
+### `POST /analyze-competitors`
+
+Upload competitor PDFs for background analysis. Poll the job status endpoint.
+
+### `POST /set-chapter-outline`
+
+Save a chapter outline that the generator should follow strictly.
+
+### `POST /originality-check`
+
+Check a draft for similarity against stored corpora (general + competitor).
+
+### `POST /drafts/export`
+
+Export a full draft from chapter content (placeholder scaffold).
+
+### `GET /drafts`
+
+List exported drafts (metadata only).
+
+### `GET /drafts/{draft_id}`
+
+Fetch a stored draft by id.
+
+### `DELETE /drafts/{draft_id}`
+
+Delete a stored draft by id.
+
+### `GET /templates`
+
+List available templates/frameworks.
+
+### `POST /templates/select`
+
+Select a template for the current project.
+
+---
+
 ## Configuration
 
 All settings can be overridden via environment variables or a `.env` file.
@@ -201,7 +281,14 @@ All settings can be overridden via environment variables or a `.env` file.
 | `CHUNK_SIZE` | `512` | Max characters per chunk |
 | `CHUNK_OVERLAP` | `64` | Overlap characters between chunks |
 | `RETRIEVAL_TOP_K` | `5` | Default number of chunks to retrieve |
+| `LLM_PROVIDER` | `ollama` | `ollama`, `openai`, or `anthropic` |
+| `LLM_REASONING_MODEL` | `llama3.1:8b` | High-reasoning model name |
+| `LLM_LIGHT_MODEL` | `llama3.1:8b` | Light model for critiques |
+| `LLM_API_BASE_URL` | `` | Optional provider base URL |
+| `ORIGINALITY_TOP_K` | `5` | Similarity matches to return |
+| `ORIGINALITY_THRESHOLD` | `0.85` | Flag threshold for similarity |
 | `UPLOAD_DIR` | `./uploaded_docs` | Directory to save uploaded files |
+| `DRAFT_STORE_DIR` | `./drafts` | Directory to persist exported drafts |
 
 ---
 
@@ -248,7 +335,3 @@ python test_api.py
 | `model not found` | Run `ollama pull llama3.1:8b` and `ollama pull nomic-embed-text` |
 | ChromaDB errors | Delete `./chroma_db` folder and restart |
 | `pymupdf` import error | Run `pip install pymupdf` |
-=======
-# AI_BOOK_RAG_GENERATION
-AI-powered book generation system using RAG, enabling users to transform documents, research papers, and context into structured, editable books.
->>>>>>> c0be8fe73b61c6dd92db10ab6052085c928befc8

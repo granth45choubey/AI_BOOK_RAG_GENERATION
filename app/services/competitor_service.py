@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sqlite3
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -181,14 +182,129 @@ def _now() -> str:
     return datetime.now(tz=timezone.utc).isoformat()
 
 
+def _get_job_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(settings.job_store_path)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    return conn
+
+
+def _init_job_db() -> None:
+    with _get_job_db() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS competitor_jobs (
+                job_id TEXT PRIMARY KEY,
+                status TEXT,
+                progress TEXT,
+                mode TEXT,
+                books_json TEXT,
+                result_json TEXT,
+                error TEXT,
+                created_at TEXT,
+                completed_at TEXT,
+                updated_at TEXT
+            )
+            """
+        )
+        conn.commit()
+
+
+def _mark_stale_jobs() -> None:
+    """
+    Mark jobs that were pending/processing before a restart as failed.
+    """
+    with _get_job_db() as conn:
+        conn.execute(
+            """
+            UPDATE competitor_jobs
+            SET status = 'failed',
+                error = 'Server restarted; job did not complete.',
+                progress = 'Marked failed after restart.',
+                completed_at = ?,
+                updated_at = ?
+            WHERE status IN ('pending', 'processing')
+            """,
+            (_now(), _now()),
+        )
+        conn.commit()
+
+
+def _save_job_to_db(job: Dict[str, Any]) -> None:
+    with _get_job_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO competitor_jobs (
+                job_id, status, progress, mode, books_json, result_json, error,
+                created_at, completed_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                status = excluded.status,
+                progress = excluded.progress,
+                mode = excluded.mode,
+                books_json = excluded.books_json,
+                result_json = excluded.result_json,
+                error = excluded.error,
+                completed_at = excluded.completed_at,
+                updated_at = excluded.updated_at
+            """,
+            (
+                job.get("job_id"),
+                job.get("status"),
+                job.get("progress"),
+                job.get("mode"),
+                json.dumps(job.get("books", [])),
+                json.dumps(job.get("result")),
+                job.get("error"),
+                job.get("created_at"),
+                job.get("completed_at"),
+                _now(),
+            ),
+        )
+        conn.commit()
+
+
+def _load_job_from_db(job_id: str) -> Optional[Dict[str, Any]]:
+    with _get_job_db() as conn:
+        cur = conn.execute(
+            """
+            SELECT job_id, status, progress, mode, books_json, result_json,
+                   error, created_at, completed_at
+            FROM competitor_jobs
+            WHERE job_id = ?
+            """,
+            (job_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return None
+    books = json.loads(row[4]) if row[4] else []
+    result = json.loads(row[5]) if row[5] else None
+    return {
+        "job_id": row[0],
+        "status": row[1],
+        "progress": row[2],
+        "mode": row[3],
+        "books": books,
+        "result": result,
+        "error": row[6],
+        "created_at": row[7],
+        "completed_at": row[8],
+    }
+
+
+_init_job_db()
+_mark_stale_jobs()
+
+
 def _update_job(job_id: str, **kwargs: Any) -> None:
     if job_id in _JOB_STORE:
         _JOB_STORE[job_id].update(kwargs)
+        _save_job_to_db(_JOB_STORE[job_id])
 
 
 def create_job(file_data: List[Dict[str, Any]], mode: str) -> str:
     job_id = str(uuid.uuid4())
-    _JOB_STORE[job_id] = {
+    job = {
         "job_id":       job_id,
         "status":       "pending",
         "progress":     "Queued — waiting for analysis worker…",
@@ -199,12 +315,14 @@ def create_job(file_data: List[Dict[str, Any]], mode: str) -> str:
         "created_at":   _now(),
         "completed_at": None,
     }
+    _JOB_STORE[job_id] = job
+    _save_job_to_db(job)
     logger.info("Job %s created (mode=%s, %d books).", job_id, mode, len(file_data))
     return job_id
 
 
 def get_job(job_id: str) -> Optional[Dict[str, Any]]:
-    return _JOB_STORE.get(job_id)
+    return _JOB_STORE.get(job_id) or _load_job_from_db(job_id)
 
 
 def submit_analysis_job(job_id: str, file_data: List[Dict[str, Any]], mode: str) -> None:

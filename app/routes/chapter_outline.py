@@ -14,6 +14,7 @@ from app.services.outline_service import (
     ChapterSection,
     delete_outline,
     get_active_outline,
+    prefill_outline_from_template,
     save_outline,
 )
 
@@ -86,6 +87,25 @@ def get_chapter_outline():
             detail="No chapter outline has been set. POST to /set-chapter-outline first.",
         )
     return {"active": True, **outline}
+
+
+@router.get(
+    "/prefill",
+    summary="Prefill a chapter outline from the selected template",
+)
+def prefill_chapter_outline():
+    outline = prefill_outline_from_template()
+    if outline is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No template selected for outline prefill.",
+        )
+    return {
+        "active_template": outline.template_id,
+        "template_name": outline.template_name,
+        "parameters": outline.parameters,
+        "chapters": outline.chapters,
+    }
 
 
 @router.delete(

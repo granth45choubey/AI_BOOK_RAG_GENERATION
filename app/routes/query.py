@@ -46,6 +46,7 @@ class QueryResponse(BaseModel):
     answer: str
     sources: List[Dict[str, Any]]
     retrieved_chunks: List[ChunkResult]
+    originality_report: Optional[Dict[str, Any]] = None
 
 
 # ── Route ─────────────────────────────────────────────────────────────────────

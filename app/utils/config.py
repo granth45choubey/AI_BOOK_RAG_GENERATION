@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     # ── Ollama / LLM ─────────────────────────────────────────────────────────
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"
+    # LLM routing (Option C)
+    llm_provider: str = "ollama"  # ollama | openai | anthropic
+    llm_reasoning_model: str = "llama3.1:8b"
+    llm_light_model: str = "llama3.1:8b"
+    llm_api_base_url: str = ""
 
     # ── Embedding ─────────────────────────────────────────────────────────────
     # "ollama" uses the same Ollama server for embeddings
@@ -20,10 +25,21 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "./chroma_db"
     chroma_collection_name: str = "rag_documents"
 
+    # ── Originality checks ───────────────────────────────────────────────────
+    originality_top_k: int = 5
+    originality_threshold: float = 0.85
+
+    # ── Templates / Frameworks ───────────────────────────────────────────────
+    template_store_path: str = "./templates/selected_template.json"
+
+    # ── Draft storage ───────────────────────────────────────────────────────
+    draft_store_dir: str = "./drafts"
+
     # ── Competitor Analysis ───────────────────────────────────────────────────
     competitor_collection_name: str = "competitor_docs"
     competitor_upload_dir: str = "./competitor_docs"
     max_competitor_books: int = 10         # hard ceiling; 5 is soft default
+    job_store_path: str = "./job_store.sqlite3"
 
     # ── Author Knowledge Ingestion ────────────────────────────────────────────
     author_upload_dir: str = "./author_docs"
