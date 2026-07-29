@@ -18,8 +18,8 @@ Turn your documents, research, and author voice into a structured, citation-back
 [![Streamlit](https://img.shields.io/badge/Streamlit-Legacy_UI-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/YOUR_USERNAME/RAG_Book_Generator?style=flat-square&logo=github)](https://github.com/YOUR_USERNAME/RAG_Book_Generator)
-[![Last commit](https://img.shields.io/github/last-commit/YOUR_USERNAME/RAG_Book_Generator?style=flat-square&logo=github)](https://github.com/YOUR_USERNAME/RAG_Book_Generator/commits/main)
+[![GitHub stars](https://img.shields.io/github/stars/granth45choubey/RAG_Book_Generator?style=flat-square&logo=github)](https://github.com/granth45choubey/RAG_Book_Generator)
+[![Last commit](https://img.shields.io/github/last-commit/granth45choubey/RAG_Book_Generator?style=flat-square&logo=github)](https://github.com/granth45choubey/RAG_Book_Generator/commits/main)
 
 [Quick Start](#installation) · [API Docs](#api-documentation) · [Architecture](#architecture) · [Contributing](#contributing)
 
@@ -321,7 +321,7 @@ flowchart LR
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/RAG_Book_Generator.git
+git clone https://github.com/granth45choubey/RAG_Book_Generator.git
 cd RAG_Book_Generator
 ```
 
@@ -794,12 +794,12 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 <div align="center">
 
-**Your Name**
+**Granth Choubey**
 
-[![GitHub](https://img.shields.io/badge/GitHub-@YOUR_USERNAME-181717?style=flat-square&logo=github)](https://github.com/YOUR_USERNAME)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-0A66C2?style=flat-square&logo=linkedin)](https://linkedin.com/in/YOUR_PROFILE)
-[![Portfolio](https://img.shields.io/badge/Portfolio-Website-7C3AED?style=flat-square)](https://your-portfolio.com)
-[![Email](https://img.shields.io/badge/Email-you@example.com-EA4335?style=flat-square&logo=gmail&logoColor=white)](mailto:you@example.com)
+[![GitHub](https://img.shields.io/badge/GitHub-@granth45choubey-181717?style=flat-square&logo=github)](https://github.com/granth45choubey)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-0A66C2?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/granthchoubey272003/?skipRedirect=true)
+[![Portfolio](https://img.shields.io/badge/Portfolio-Website-7C3AED?style=flat-square)](https://portfolio-granth-self.vercel.app/)
+[![Email](https://img.shields.io/badge/Email-granthchoubey09@gmail.com-EA4335?style=flat-square&logo=gmail&logoColor=white)](mailto:granthchoubey09@gmail.com)
 
 </div>
 
@@ -825,9 +825,7 @@ Built with and inspired by:
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=YOUR_USERNAME/RAG_Book_Generator&type=Date)](https://star-history.com/#YOUR_USERNAME/RAG_Book_Generator&Date)
-
-> Replace `YOUR_USERNAME` with your GitHub username once the repository is published.
+[![Star History Chart](https://api.star-history.com/svg?repos=granth45choubey/RAG_Book_Generator&type=Date)](https://star-history.com/#granth45choubey/RAG_Book_Generator&Date)
 
 ---
 
