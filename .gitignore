@@ -9,22 +9,32 @@ __pycache__/
 # Environment variables
 .env
 
-# Database / embeddings (RAG specific)
+# Vector DB
 chroma_db/
 
 # Uploaded files
 uploaded_docs/
 
-# Generated exports (keep directory marker)
+# Generated author documents
+author_docs/*
+!author_docs/.gitkeep
+
+# Competitor documents
+competitor_docs/*
+!competitor_docs/.gitkeep
+
+# Generated exports
 exports/*
 !exports/.gitkeep
-author_docs/generated_book.json
 
-# OS / system files
+# macOS / Windows
 .DS_Store
 Thumbs.db
 
-# Frontend (Next.js)
+# Frontend
 frontend/node_modules/
 frontend/.next/
 frontend/.env.local
+
+# VS Code
+.vscode/
