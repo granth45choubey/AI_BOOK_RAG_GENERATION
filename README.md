@@ -2,9 +2,12 @@
 
 <!-- Hero Section -->
 
-<img src="https://via.placeholder.com/120x120/7C3AED/FFFFFF?text=BG" alt="BookGen AI Logo" width="120" />
+
 
 # BookGen AI
+
+<img width="1222" height="910" alt="Screenshot 2026-07-30 024635" src="https://github.com/user-attachments/assets/94f30fd7-a3a6-4b75-b86c-b2c61ade6198" />
+
 
 ### **Grounded AI book generation powered by Retrieval-Augmented Generation**
 
@@ -567,12 +570,21 @@ Interactive docs: **http://localhost:8000/docs**
 
 **Step 1 — Upload a knowledge base document**
 
+
+<img width="1621" height="981" alt="Screenshot 2026-07-30 022623" src="https://github.com/user-attachments/assets/ccb83376-6676-4d0b-a6d9-ddac329748ec" />
+
+
 ```bash
 curl -X POST http://localhost:8000/upload-documents \
   -F "files=@research_notes.pdf"
 ```
 
 **Step 2 — Set book context**
+
+
+<img width="1252" height="811" alt="Screenshot 2026-07-30 023442" src="https://github.com/user-attachments/assets/d0536087-3a70-4d0e-8e45-417f3f68e74e" />
+
+
 
 ```bash
 curl -X POST http://localhost:8000/create-book-context \
@@ -585,6 +597,12 @@ curl -X POST http://localhost:8000/create-book-context \
 ```
 
 **Step 3 — Submit market analysis**
+
+
+
+<img width="1170" height="740" alt="Screenshot 2026-07-30 023735" src="https://github.com/user-attachments/assets/ae9535ba-2c68-4848-9f75-187e3f7c59f0" />
+
+
 
 ```bash
 curl -X POST "http://localhost:8000/analyze-market?mode=replace&document_type=book" \
@@ -599,6 +617,11 @@ curl http://localhost:8000/analyze-market/status/{job_id}
 
 **Step 4 — Generate frameworks and select one**
 
+
+<img width="1231" height="835" alt="Screenshot 2026-07-30 023807" src="https://github.com/user-attachments/assets/cb372226-4b32-4601-a029-8c7b939d9a98" />
+
+
+
 ```bash
 curl -X POST http://localhost:8000/generate-frameworks \
   -H "Content-Type: application/json" \
@@ -611,6 +634,10 @@ curl -X POST http://localhost:8000/select-framework \
 
 **Step 5 — Set a chapter outline**
 
+
+<img width="1177" height="792" alt="Screenshot 2026-07-30 024500" src="https://github.com/user-attachments/assets/3becd57f-11a3-4f90-baa3-4b910f82540e" />
+
+
 ```bash
 curl -X POST http://localhost:8000/set-chapter-outline \
   -H "Content-Type: application/json" \
@@ -619,6 +646,10 @@ curl -X POST http://localhost:8000/set-chapter-outline \
 
 **Step 6 — Generate a chapter**
 
+
+<img width="1312" height="926" alt="Screenshot 2026-07-30 024412" src="https://github.com/user-attachments/assets/912e5db4-c297-460b-8015-fab871670450" />
+
+
 ```bash
 curl -X POST http://localhost:8000/query \
   -H "Content-Type: application/json" \
@@ -626,6 +657,10 @@ curl -X POST http://localhost:8000/query \
 ```
 
 **Step 7 — Export as DOCX**
+
+<img width="1152" height="791" alt="Screenshot 2026-07-30 024530" src="https://github.com/user-attachments/assets/0a57138e-c0f3-4e41-bac9-244e9cc895d1" />
+
+
 
 ```bash
 curl -X POST http://localhost:8000/export/docx \
