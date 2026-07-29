@@ -1,0 +1,30 @@
+# Virtual Environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# Database / embeddings (RAG specific)
+chroma_db/
+
+# Uploaded files
+uploaded_docs/
+
+# Generated exports (keep directory marker)
+exports/*
+!exports/.gitkeep
+author_docs/generated_book.json
+
+# OS / system files
+.DS_Store
+Thumbs.db
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local

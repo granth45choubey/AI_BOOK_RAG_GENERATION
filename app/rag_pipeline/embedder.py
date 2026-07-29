@@ -2,13 +2,15 @@
 Embedding module.
 
 Supports:
-- "ollama" : OllamaEmbeddings via langchain_community (default, no API key needed)
+- "ollama" : Native Ollama /api/embed batch API (default, no API key needed)
+- Future   : OpenAI / HuggingFace via LangChain wrappers
 
-Provides standard LangChain embedding interface:
-  embed_documents(texts)  → List[List[float]]
-  embed_query(text)       → List[float]
-
-Adding a new provider is as simple as extending _get_embedding_function().
+Public API
+----------
+  embed_documents(texts)  → List[List[float]]  — batched for ingestion
+  embed_query(text)       → List[float]         — single query vector
+  embed_texts(texts)      → alias for embed_documents
+  get_embedding_function()→ LangChain wrapper (legacy / non-Ollama providers)
 """
 from __future__ import annotations
 
@@ -17,12 +19,9 @@ import warnings
 from functools import lru_cache
 from typing import List
 
-# langchain_community.OllamaEmbeddings is deprecated in LC>=0.3.1 but fully
-# functional — suppress the noisy warning so server logs stay clean.
-# We filter both DeprecationWarning and its LangChain subclass.
-warnings.filterwarnings("ignore", message=".*OllamaEmbeddings.*")
+import httpx
 
-from langchain_community.embeddings import OllamaEmbeddings  # noqa: E402
+warnings.filterwarnings("ignore", message=".*OllamaEmbeddings.*")
 
 from app.utils.config import get_settings
 
@@ -31,13 +30,68 @@ settings = get_settings()
 
 
 @lru_cache(maxsize=1)
+def _ollama_http_client() -> httpx.Client:
+    """Reused HTTP client for Ollama embedding requests."""
+    return httpx.Client(
+        base_url=settings.ollama_base_url,
+        timeout=httpx.Timeout(settings.ollama_embed_timeout, connect=10.0),
+    )
+
+
+def _embed_ollama_native(texts: List[str]) -> List[List[float]]:
+    """
+    Embed texts using Ollama's native /api/embed endpoint.
+
+    Unlike LangChain's OllamaEmbeddings (one HTTP call per text), Ollama
+    accepts a list input and embeds the full batch in a single request —
+    typically 30–40× faster for document ingestion workloads.
+    """
+    if not texts:
+        return []
+
+    client = _ollama_http_client()
+    batch_size = max(1, settings.embedding_batch_size)
+    all_vectors: List[List[float]] = []
+    n_batches = (len(texts) + batch_size - 1) // batch_size
+
+    for batch_num, start in enumerate(range(0, len(texts), batch_size), start=1):
+        batch = texts[start : start + batch_size]
+        response = client.post(
+            "/api/embed",
+            json={"model": settings.embedding_model, "input": batch},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        embeddings = payload.get("embeddings")
+        if not embeddings or len(embeddings) != len(batch):
+            raise RuntimeError(
+                f"Ollama /api/embed returned {len(embeddings or [])} vectors "
+                f"for {len(batch)} inputs (batch {batch_num}/{n_batches})."
+            )
+        all_vectors.extend(embeddings)
+        logger.debug(
+            "Ollama embed batch %d/%d (%d texts)",
+            batch_num, n_batches, len(batch),
+        )
+
+    return all_vectors
+
+
+@lru_cache(maxsize=1)
 def get_embedding_function():
-    """Return a cached embedding function based on config."""
+    """
+    Return a cached LangChain embedding function.
+
+    Used as fallback for non-Ollama providers.  Ingestion paths should prefer
+    embed_documents() / embed_query() which use the native Ollama batch API.
+    """
+    from langchain_community.embeddings import OllamaEmbeddings
+
     provider = settings.embedding_provider.lower()
 
     if provider == "ollama":
         logger.info(
-            "Embedding provider: Ollama | model: %s | base_url: %s",
+            "LangChain embedding fallback: Ollama | model: %s | url: %s",
             settings.embedding_model,
             settings.ollama_base_url,
         )
@@ -46,19 +100,27 @@ def get_embedding_function():
             base_url=settings.ollama_base_url,
         )
 
-    # ── Future providers (uncomment and set EMBEDDING_PROVIDER in .env) ────
-    # elif provider == "openai":
-    #     from langchain_openai import OpenAIEmbeddings
-    #     return OpenAIEmbeddings(model="text-embedding-3-small")
-    # elif provider == "huggingface":
-    #     from langchain_huggingface import HuggingFaceEmbeddings
-    #     return HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
     raise ValueError(f"Unsupported embedding provider: {provider!r}")
 
 
-def embed_texts(texts: List[str]) -> List[List[float]]:
-    """Embed a list of strings and return float vectors."""
+def embed_documents(texts: List[str]) -> List[List[float]]:
+    """Embed a list of strings; uses native Ollama batch API when configured."""
+    if not texts:
+        return []
+
+    provider = settings.embedding_provider.lower()
+    if provider == "ollama":
+        return _embed_ollama_native(texts)
+
     ef = get_embedding_function()
-    vectors = ef.embed_documents(texts)
-    logger.debug("Embedded %d texts → vector dim %d", len(texts), len(vectors[0]) if vectors else 0)
-    return vectors
+    return ef.embed_documents(texts)
+
+
+def embed_query(text: str) -> List[float]:
+    """Embed a single query string."""
+    return embed_documents([text])[0]
+
+
+def embed_texts(texts: List[str]) -> List[List[float]]:
+    """Alias kept for backward compatibility."""
+    return embed_documents(texts)

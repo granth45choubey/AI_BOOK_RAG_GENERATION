@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
+from functools import partial
+from typing import List, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from app.services.author_service import ingest_author_documents_sync
@@ -36,6 +37,11 @@ async def upload_author_documents(
         description="PDF, DOCX, or TXT files containing author-specific content "
                     "(questionnaires, transcripts, notes, etc.)",
     ),
+    description: Optional[str] = Form(
+        default=None,
+        description="Optional author guidelines / description for this upload batch. "
+                    "Stored as metadata on every chunk and injected into the generation prompt.",
+    ),
 ):
     """
     Upload one or more author-specific documents into the RAG knowledge base.
@@ -43,6 +49,12 @@ async def upload_author_documents(
     Stored chunks receive **source_type=author** and **priority_score=1.0**,
     so they are always retrieved first and have the strongest influence on
     LLM-generated content.
+
+    An optional **description** field can accompany the upload to provide
+    author guidelines (tone, scope, restrictions, etc.). These guidelines are:
+    - Persisted in `author_docs/descriptions.json`
+    - Attached as `author_description` metadata on every chunk
+    - Injected into the LLM generation prompt as "Author Guidance"
 
     - Supports: PDF, DOCX, TXT
     - Uses the same chunking/embedding pipeline as `/upload-documents`
@@ -61,11 +73,8 @@ async def upload_author_documents(
 
     try:
         loop = asyncio.get_running_loop()
-        summary = await loop.run_in_executor(
-            _author_executor,
-            ingest_author_documents_sync,
-            file_data,
-        )
+        fn = partial(ingest_author_documents_sync, file_data, description or None)
+        summary = await loop.run_in_executor(_author_executor, fn)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

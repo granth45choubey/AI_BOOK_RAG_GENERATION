@@ -2,9 +2,11 @@
 Query service — updated with layered retrieval path.
 
 Pipeline selection:
-  - If author docs, book context, or outline are present → structured generation
+  - If layered book/market context is present → structured generation
     (generate_answer_structured with priority-ordered StructuredContext)
-  - Otherwise → existing flat retrieval + generate_answer (backward compat)
+  - If source_filter is set → flat retrieval (filename filter not supported
+    by the layered path)
+  - Otherwise → flat retrieval + generate_answer (backward compat)
 """
 from __future__ import annotations
 
@@ -21,6 +23,31 @@ settings = get_settings()
 
 MIN_SCORE:      float = 0.10
 FALLBACK_TOP_N: int   = 3
+
+
+def _use_structured_path(ctx) -> bool:
+    """True when layered context should drive structured generation."""
+    return bool(
+        ctx.author_chunks
+        or ctx.book_context_text
+        or ctx.outline_text
+        or ctx.research_chunks
+        or ctx.industry_chunks
+        or ctx.whitepaper_chunks
+        or ctx.competitor_chunks
+    )
+
+
+def _collect_structured_chunks(ctx) -> List[Dict[str, Any]]:
+    """Merge all layered chunk lists for citations (dedup handled downstream)."""
+    return (
+        ctx.author_chunks
+        + ctx.research_chunks
+        + ctx.industry_chunks
+        + ctx.whitepaper_chunks
+        + ctx.competitor_chunks
+        + ctx.general_chunks
+    )
 
 
 def answer_query(
@@ -48,25 +75,25 @@ def answer_query(
     # ── Layered retrieval ─────────────────────────────────────────────────────
     ctx = retrieve_layered(question)
 
-    has_priority = bool(
-        ctx.author_chunks
-        or ctx.book_context_text
-        or ctx.outline_text
-    )
+    use_structured = _use_structured_path(ctx) and not source_filter
 
-    if has_priority:
+    if use_structured:
         # ── Structured generation (enhanced path) ─────────────────────────────
         logger.info(
             "Using structured generation path "
-            "(author=%d, ctx=%s, outline=%s, competitor=%d, general=%d).",
+            "(author=%d, ctx=%s, outline=%s, research=%d, industry=%d, "
+            "whitepaper=%d, competitor=%d, general=%d).",
             len(ctx.author_chunks),
             "yes" if ctx.book_context_text else "no",
             "yes" if ctx.outline_text else "no",
+            len(ctx.research_chunks),
+            len(ctx.industry_chunks),
+            len(ctx.whitepaper_chunks),
             len(ctx.competitor_chunks),
             len(ctx.general_chunks),
         )
         answer     = generate_answer_structured(question, ctx)
-        all_chunks = ctx.author_chunks + ctx.competitor_chunks + ctx.general_chunks
+        all_chunks = _collect_structured_chunks(ctx)
 
     else:
         # ── Fallback: original flat retrieval (backward compat) ───────────────

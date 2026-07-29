@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 
-from app.rag_pipeline.embedder import get_embedding_function
+from app.rag_pipeline.embedder import embed_documents, embed_query
 from app.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,21 @@ def get_collection():
     return collection
 
 
-# ── Write ─────────────────────────────────────────────────────────────────────
+@lru_cache(maxsize=1)
+def _get_market_collection():
+    """Cached handle for the market/competitor Chroma collection."""
+    return _get_chroma_client().get_or_create_collection(
+        name=settings.competitor_collection_name,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+
+def _market_collection_count() -> int:
+    try:
+        return _get_market_collection().count()
+    except Exception:
+        return 0
+
 
 def store_chunks(chunks: List[Dict[str, Any]]) -> int:
     """
@@ -76,15 +90,18 @@ def store_chunks_with_type(
     chunks: List[Dict[str, Any]],
     source_type: str = "general",
     priority_score: float = 0.5,
+    extra_metadata: Optional[Dict[str, Any]] = None,
 ) -> int:
     """
     Embed and persist chunks with explicit source_type and priority_score metadata.
 
     Parameters
     ----------
-    chunks      : list of dicts with keys: text, source, page, chunk_index
-    source_type : "author" | "context" | "outline" | "competitor" | "general"
+    chunks         : list of dicts with keys: text, source, page, chunk_index
+    source_type    : "author" | "context" | "outline" | "competitor" | "general"
     priority_score : float 0–1; higher = retrieved first in layered pipeline
+    extra_metadata : optional dict of additional key/value pairs merged into
+                     every chunk's metadata (e.g. {"author_description": "..."})
 
     Returns
     -------
@@ -94,10 +111,12 @@ def store_chunks_with_type(
         return 0
 
     collection = get_collection()
-    ef = get_embedding_function()
 
     texts = [c["text"] for c in chunks]
     ids = [str(uuid.uuid4()) for _ in chunks]
+
+    # Build base metadata for each chunk, then merge any extra fields
+    _extra = extra_metadata or {}
     metadatas = [
         {
             "source":         c["source"],
@@ -105,21 +124,23 @@ def store_chunks_with_type(
             "chunk_index":    int(c["chunk_index"]),
             "source_type":    source_type,
             "priority_score": priority_score,
+            **_extra,
         }
         for c in chunks
     ]
 
-    batch_size = 50
+    batch_size = max(1, settings.embedding_batch_size)
     total_stored = 0
     n_batches = (len(ids) + batch_size - 1) // batch_size
 
+    logger.info(
+        "Embedding %d chunks in %d batch(es) (batch_size=%d, source_type=%s)…",
+        len(ids), n_batches, batch_size, source_type,
+    )
+
     for batch_num, i in enumerate(range(0, len(ids), batch_size), start=1):
         batch_texts = texts[i : i + batch_size]
-        logger.info(
-            "Embedding batch %d/%d (%d texts, source_type=%s)…",
-            batch_num, n_batches, len(batch_texts), source_type,
-        )
-        batch_vectors: List[List[float]] = ef.embed_documents(batch_texts)
+        batch_vectors: List[List[float]] = embed_documents(batch_texts)
         collection.upsert(
             ids=ids[i : i + batch_size],
             documents=batch_texts,
@@ -127,7 +148,10 @@ def store_chunks_with_type(
             metadatas=metadatas[i : i + batch_size],
         )
         total_stored += len(batch_texts)
-
+        logger.debug(
+            "Stored embed batch %d/%d (%d chunks)",
+            batch_num, n_batches, len(batch_texts),
+        )
 
     logger.info(
         "Stored %d chunks in collection '%s'",
@@ -143,6 +167,7 @@ def retrieve_chunks(
     query: str,
     top_k: int | None = None,
     filter_metadata: Dict[str, Any] | None = None,
+    query_vector: List[float] | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Retrieve the top-k most similar chunks for a query.
@@ -155,7 +180,7 @@ def retrieve_chunks(
 
     Returns
     -------
-    list of dicts: {text, source, page, chunk_index, score}
+    list of dicts: {text, source, page, chunk_index, score, source_type, ...}
     """
     top_k = top_k or settings.retrieval_top_k
     collection = get_collection()
@@ -166,10 +191,10 @@ def retrieve_chunks(
         return []
 
     n_results = min(top_k, count)
-    ef = get_embedding_function()
 
-    # ── Embed the query explicitly ─────────────────────────────────────────
-    query_vector: List[float] = ef.embed_query(query)
+    # ── Embed the query (skip if caller already computed the vector) ─────────
+    if query_vector is None:
+        query_vector = embed_query(query)
 
     kwargs: Dict[str, Any] = {
         "query_embeddings": [query_vector],    # ← raw vector, no wrapper needed
@@ -193,6 +218,8 @@ def retrieve_chunks(
             "page": meta.get("page", -1),
             "chunk_index": meta.get("chunk_index", -1),
             "score": round(1 - float(dist), 4),   # cosine sim (higher = better)
+            "source_type": meta.get("source_type", "general"),
+            "author_description": meta.get("author_description", ""),
         })
 
     logger.info("Retrieved %d chunks for query: %.60s…", len(retrieved), query)
@@ -204,11 +231,15 @@ def retrieve_chunks(
 @dataclass
 class StructuredContext:
     """Layered context assembled by retrieve_layered()."""
-    author_chunks:     List[Dict[str, Any]] = field(default_factory=list)
-    book_context_text: Optional[str]        = None
-    outline_text:      Optional[str]        = None
-    competitor_chunks: List[Dict[str, Any]] = field(default_factory=list)
-    general_chunks:    List[Dict[str, Any]] = field(default_factory=list)
+    author_chunks:        List[Dict[str, Any]] = field(default_factory=list)
+    book_context_text:    Optional[str]        = None
+    outline_text:         Optional[str]        = None
+    # Market & Research Analysis layers (priority order within market tier)
+    research_chunks:      List[Dict[str, Any]] = field(default_factory=list)  # research_paper
+    industry_chunks:      List[Dict[str, Any]] = field(default_factory=list)  # industry_report
+    whitepaper_chunks:    List[Dict[str, Any]] = field(default_factory=list)  # whitepaper
+    competitor_chunks:    List[Dict[str, Any]] = field(default_factory=list)  # book (competitor)
+    general_chunks:       List[Dict[str, Any]] = field(default_factory=list)
 
 
 # ── Layered retrieval ─────────────────────────────────────────────────────────
@@ -255,12 +286,13 @@ def _retrieve_by_type(
                 res["distances"][0],
             ):
                 chunks.append({
-                    "text":        doc,
-                    "source":      meta.get("source", "unknown"),
-                    "page":        meta.get("page", -1),
-                    "chunk_index": meta.get("chunk_index", -1),
-                    "source_type": meta.get("source_type", source_type),
-                    "score":       round(1 - float(dist), 4),
+                    "text":               doc,
+                    "source":             meta.get("source", "unknown"),
+                    "page":               meta.get("page", -1),
+                    "chunk_index":        meta.get("chunk_index", -1),
+                    "source_type":        meta.get("source_type", source_type),
+                    "author_description": meta.get("author_description", ""),
+                    "score":              round(1 - float(dist), 4),
                 })
             return chunks
         except Exception as exc:
@@ -274,20 +306,76 @@ def _retrieve_by_type(
     return []
 
 
+def _retrieve_market_collection_by_type(
+    query_vector: List[float],
+    document_type: str,
+    top_k: int,
+) -> List[Dict[str, Any]]:
+    """
+    Query the market analysis (competitor) collection filtered by document_type.
+    Returns [] gracefully if no matching documents exist.
+    """
+    try:
+        col = _get_market_collection()
+        count = col.count()
+        if count == 0:
+            return []
+        n = min(top_k, count)
+        while n >= 1:
+            try:
+                res = col.query(
+                    query_embeddings=[query_vector],
+                    n_results=n,
+                    where={"document_type": {"$eq": document_type}},
+                    include=["documents", "metadatas", "distances"],
+                )
+                chunks = []
+                for doc, meta, dist in zip(
+                    res["documents"][0],
+                    res["metadatas"][0],
+                    res["distances"][0],
+                ):
+                    chunks.append({
+                        "text":          doc,
+                        "source":        meta.get("source", "unknown"),
+                        "page":          meta.get("page", -1),
+                        "chunk_index":   meta.get("chunk_index", -1),
+                        "source_type":   meta.get("source_type", "market_analysis"),
+                        "document_type": meta.get("document_type", document_type),
+                        "score":         round(1 - float(dist), 4),
+                    })
+                return chunks
+            except Exception as exc:
+                err = str(exc).lower()
+                if "number of results" in err or "n_results" in err or "less than" in err:
+                    n -= 1
+                    continue
+                logger.warning("market_by_type(%s) failed: %s", document_type, exc)
+                return []
+        return []
+    except Exception as exc:
+        logger.warning("_retrieve_market_collection_by_type(%s) failed: %s", document_type, exc)
+        return []
+
+
 def _retrieve_competitor_chunks(
     query_vector: List[float],
     top_k: int,
 ) -> List[Dict[str, Any]]:
-    """Query the separate competitor_docs ChromaDB collection."""
+    """
+    Query competitor book chunks from the market analysis collection.
+    Handles both legacy (no document_type metadata) and new enriched metadata.
+    """
+    # Try new document_type filter first
+    chunks = _retrieve_market_collection_by_type(query_vector, "book", top_k)
+    if chunks:
+        for c in chunks:
+            c["source_type"] = "competitor"  # keep legacy label for generator
+        return chunks
+
+    # Fallback: collection exists but no document_type metadata (old data)
     try:
-        client = chromadb.PersistentClient(
-            path=settings.chroma_persist_dir,
-            settings=ChromaSettings(anonymized_telemetry=False),
-        )
-        col = client.get_or_create_collection(
-            name=settings.competitor_collection_name,
-            metadata={"hnsw:space": "cosine"},
-        )
+        col = _get_market_collection()
         count = col.count()
         if count == 0:
             return []
@@ -297,13 +385,13 @@ def _retrieve_competitor_chunks(
             n_results=n,
             include=["documents", "metadatas", "distances"],
         )
-        chunks = []
+        result = []
         for doc, meta, dist in zip(
             res["documents"][0],
             res["metadatas"][0],
             res["distances"][0],
         ):
-            chunks.append({
+            result.append({
                 "text":        doc,
                 "source":      meta.get("source", "unknown"),
                 "page":        meta.get("page", -1),
@@ -311,29 +399,96 @@ def _retrieve_competitor_chunks(
                 "source_type": "competitor",
                 "score":       round(1 - float(dist), 4),
             })
-        return chunks
+        return result
     except Exception as exc:
         logger.warning("Competitor chunk retrieval failed: %s", exc)
         return []
+
+
+def _retrieve_general_with_vector(
+    query_vector: List[float],
+    top_k: int,
+    extra_fetch: int = 2,
+) -> List[Dict[str, Any]]:
+    """General-doc retrieval reusing a pre-computed query vector (no re-embed)."""
+    collection = get_collection()
+    count = collection.count()
+    if count == 0:
+        return []
+
+    _special_sources = {"__book_context__", "__chapter_outline__"}
+    _priority_types  = {"author", "context", "outline", "market_analysis"}
+    n_results = min(top_k + extra_fetch, count)
+
+    try:
+        res = collection.query(
+            query_embeddings=[query_vector],
+            n_results=n_results,
+            include=["documents", "metadatas", "distances"],
+        )
+    except Exception as exc:
+        logger.warning("_retrieve_general_with_vector failed: %s", exc)
+        return []
+
+    chunks: List[Dict[str, Any]] = []
+    for doc, meta, dist in zip(
+        res["documents"][0],
+        res["metadatas"][0],
+        res["distances"][0],
+    ):
+        source_type = meta.get("source_type", "general")
+        source = meta.get("source", "")
+        if source_type in _priority_types or source in _special_sources:
+            continue
+        chunks.append({
+            "text":               doc,
+            "source":             source,
+            "page":               meta.get("page", -1),
+            "chunk_index":        meta.get("chunk_index", -1),
+            "source_type":        source_type,
+            "author_description": meta.get("author_description", ""),
+            "score":              round(1 - float(dist), 4),
+        })
+        if len(chunks) >= top_k:
+            break
+    return chunks
+
+
+def retrieve_for_framework(query: str, max_chunks: int = 7) -> List[Dict[str, Any]]:
+    """
+    Lightweight retrieval for framework generation.
+
+    Single query embedding + targeted fetches (author, competitor, general).
+    Skips book-context/outline fetches and empty market sub-layers.
+    """
+    query_vector = embed_query(query)
+    chunks: List[Dict[str, Any]] = []
+    chunks.extend(_retrieve_by_type(query_vector, "author", min(2, max_chunks)))
+    if _market_collection_count() > 0:
+        chunks.extend(_retrieve_competitor_chunks(query_vector, 1))
+    chunks.extend(_retrieve_general_with_vector(query_vector, top_k=2))
+    return chunks[:max_chunks]
 
 
 def retrieve_layered(query: str) -> StructuredContext:
     """
     Priority-ordered retrieval across all context sources.
 
-    Retrieval order (highest to lowest priority):
-      1. Author chunks        (source_type=author,  top_k from config)
-      2. Book context text    (fixed ID fetch)
-      3. Outline text         (fixed ID fetch)
-      4. Competitor chunks    (separate collection, top_k from config)
-      5. General chunks       (no source_type filter, excluding special IDs)
+    Retrieval order (highest → lowest priority):
+      1. Author chunks           (source_type=author)
+      2. Book context text       (fixed ID fetch)
+      3. Outline text            (fixed ID fetch)
+      4. Research paper chunks   (document_type=research_paper, score 0.85)
+      5. Industry report chunks  (document_type=industry_report, score 0.80)
+      6. Whitepaper chunks       (document_type=whitepaper,      score 0.75)
+      7. Competitor book chunks  (document_type=book,            score 0.70)
+      8. General chunks          (no source_type filter, excluding special IDs)
 
     Returns
     -------
     StructuredContext dataclass with each layer populated separately.
     """
-    ef = get_embedding_function()
-    query_vector: List[float] = ef.embed_query(query)
+    query_vector: List[float] = embed_query(query)
 
     # 1. Author
     author_chunks = _retrieve_by_type(query_vector, "author", settings.author_top_k)
@@ -344,27 +499,38 @@ def retrieve_layered(query: str) -> StructuredContext:
     # 3. Outline (direct ID)
     outline_text = _get_doc_by_id("outline_active")
 
-    # 4. Competitor (separate collection)
-    competitor_chunks = _retrieve_competitor_chunks(query_vector, settings.competitor_top_k)
+    # 4–7. Market layers (skip all queries when collection is empty)
+    research_chunks: List[Dict[str, Any]] = []
+    industry_chunks: List[Dict[str, Any]] = []
+    whitepaper_chunks: List[Dict[str, Any]] = []
+    competitor_chunks: List[Dict[str, Any]] = []
+    if _market_collection_count() > 0:
+        research_chunks = _retrieve_market_collection_by_type(
+            query_vector, "research_paper", settings.competitor_top_k
+        )
+        industry_chunks = _retrieve_market_collection_by_type(
+            query_vector, "industry_report", settings.competitor_top_k
+        )
+        whitepaper_chunks = _retrieve_market_collection_by_type(
+            query_vector, "whitepaper", settings.competitor_top_k
+        )
+        competitor_chunks = _retrieve_competitor_chunks(query_vector, settings.competitor_top_k)
 
-    # 5. General — retrieve broadly then strip priority docs
-    _special_sources = {"__book_context__", "__chapter_outline__"}
-    _priority_types  = {"author", "context", "outline"}
-    general_raw = retrieve_chunks(
-        query=query,
-        top_k=settings.general_top_k + 5,   # over-fetch then trim
+    # 8. General — reuse query vector (avoid duplicate embed via retrieve_chunks)
+    general_chunks = _retrieve_general_with_vector(
+        query_vector,
+        top_k=settings.general_top_k,
     )
-    general_chunks = [
-        c for c in general_raw
-        if c.get("source_type", "general") not in _priority_types
-        and c.get("source", "") not in _special_sources
-    ][: settings.general_top_k]
 
     logger.info(
-        "retrieve_layered: author=%d bk_ctx=%s outline=%s competitor=%d general=%d",
+        "retrieve_layered: author=%d bk_ctx=%s outline=%s "
+        "research=%d industry=%d wp=%d competitor=%d general=%d",
         len(author_chunks),
         "yes" if book_context_text else "no",
         "yes" if outline_text else "no",
+        len(research_chunks),
+        len(industry_chunks),
+        len(whitepaper_chunks),
         len(competitor_chunks),
         len(general_chunks),
     )
@@ -372,6 +538,9 @@ def retrieve_layered(query: str) -> StructuredContext:
         author_chunks=author_chunks,
         book_context_text=book_context_text,
         outline_text=outline_text,
+        research_chunks=research_chunks,
+        industry_chunks=industry_chunks,
+        whitepaper_chunks=whitepaper_chunks,
         competitor_chunks=competitor_chunks,
         general_chunks=general_chunks,
     )

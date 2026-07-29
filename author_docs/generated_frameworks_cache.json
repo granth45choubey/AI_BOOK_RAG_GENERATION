@@ -1,0 +1,149 @@
+{
+  "inputs_fingerprint": "82624befc58febfe81bfb042",
+  "frameworks": [
+    {
+      "framework_id": "PF1",
+      "name": "The Ripple Effect Framework",
+      "unique_angle": "Transformational Writing",
+      "flow_of_transformation": {
+        "before": "Curious Beginner",
+        "journey": "Permission to Write Garbage, then Brilliance",
+        "after": "Confident Practitioner"
+      },
+      "chapter_breakdown": [
+        {
+          "number": 1,
+          "title": "Why Transformational Writing Matters",
+          "purpose": "Introduce the concept of transformational writing",
+          "key_concepts": [
+            "Ripple effects",
+            "Changing the world"
+          ]
+        },
+        {
+          "number": 2,
+          "title": "Overcoming the Myth of Brilliance",
+          "purpose": "Challenge the myth that first drafts need to be brilliant",
+          "key_concepts": [
+            "Permission to write garbage",
+            "The power of imperfection"
+          ]
+        },
+        {
+          "number": 3,
+          "title": "The Science of Productivity",
+          "purpose": "Introduce the concept of productivity and its impact on happiness",
+          "key_concepts": [
+            "Mean productivity",
+            "Happiness treatments"
+          ]
+        },
+        {
+          "number": 4,
+          "title": "Mastering Your Focus",
+          "purpose": "Teach readers how to focus and achieve their objectives",
+          "key_concepts": [
+            "Five levels of productivity",
+            "Focus and achieving goals"
+          ]
+        }
+      ]
+    },
+    {
+      "framework_id": "PF2",
+      "name": "The Productivity Pyramid Framework",
+      "unique_angle": "Practical Application",
+      "flow_of_transformation": {
+        "before": "Limited Prior Knowledge",
+        "journey": "Building Blocks of Productivity, from Simple to Complex",
+        "after": "Confident Practitioner"
+      },
+      "chapter_breakdown": [
+        {
+          "number": 1,
+          "title": "Understanding the Basics of Productivity",
+          "purpose": "Introduce the fundamentals of productivity",
+          "key_concepts": [
+            "Defining productivity",
+            "Setting goals"
+          ]
+        },
+        {
+          "number": 2,
+          "title": "Building Your Productivity Skills",
+          "purpose": "Teach readers how to develop their productivity skills",
+          "key_concepts": [
+            "Time management",
+            "Prioritization"
+          ]
+        },
+        {
+          "number": 3,
+          "title": "Mastering Your Focus and Energy",
+          "purpose": "Help readers manage their focus and energy levels",
+          "key_concepts": [
+            "Focus and achieving goals",
+            "Energy management"
+          ]
+        },
+        {
+          "number": 4,
+          "title": "Advanced Productivity Techniques",
+          "purpose": "Introduce advanced productivity techniques for achieving objectives",
+          "key_concepts": [
+            "Prioritization",
+            "Delegation"
+          ]
+        }
+      ]
+    },
+    {
+      "framework_id": "PF3",
+      "name": "The Mindset Shift Framework",
+      "unique_angle": "Mindset and Motivation",
+      "flow_of_transformation": {
+        "before": "Limited Prior Knowledge",
+        "journey": "From Curiosity to Confidence, through Mindset Shifts",
+        "after": "Confident Practitioner"
+      },
+      "chapter_breakdown": [
+        {
+          "number": 1,
+          "title": "Understanding Your Current Productivity Mindset",
+          "purpose": "Help readers understand their current mindset and limitations",
+          "key_concepts": [
+            "Mindset analysis",
+            "Self-awareness"
+          ]
+        },
+        {
+          "number": 2,
+          "title": "The Power of Positive Thinking in Productivity",
+          "purpose": "Teach readers how to cultivate a positive mindset for productivity",
+          "key_concepts": [
+            "Positive thinking",
+            "Gratitude practices"
+          ]
+        },
+        {
+          "number": 3,
+          "title": "Overcoming Procrastination and Self-Doubt",
+          "purpose": "Help readers overcome procrastination and self-doubt",
+          "key_concepts": [
+            "Procrastination strategies",
+            "Self-confidence building"
+          ]
+        },
+        {
+          "number": 4,
+          "title": "Maintaining Momentum and Motivation",
+          "purpose": "Teach readers how to maintain momentum and motivation over time",
+          "key_concepts": [
+            "Accountability systems",
+            "Celebrate progress"
+          ]
+        }
+      ]
+    }
+  ]
+}

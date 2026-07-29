@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import logging
+import time
 from pathlib import Path
 from typing import List, Dict
 
@@ -56,6 +57,7 @@ def ingest_documents_sync(file_data: List[Dict]) -> dict:
             continue
 
         # ── Save file ────────────────────────────────────────────────────────
+        t_file_start = time.perf_counter()
         save_path = os.path.join(settings.upload_dir, filename)
         try:
             with open(save_path, "wb") as f:
@@ -64,32 +66,49 @@ def ingest_documents_sync(file_data: List[Dict]) -> dict:
             logger.error("Failed to save '%s': %s", filename, exc)
             results.append({"filename": filename, "status": "error", "reason": str(exc)})
             continue
+        t_save = time.perf_counter() - t_file_start
 
         # ── Parse ────────────────────────────────────────────────────────────
+        t_parse_start = time.perf_counter()
         try:
             pages = parse_file(save_path)
         except Exception as exc:
             logger.error("Failed to parse '%s': %s", filename, exc)
             results.append({"filename": filename, "status": "error", "reason": f"Parse error: {exc}"})
             continue
+        t_parse = time.perf_counter() - t_parse_start
 
-        logger.info("Parsed '%s' → %d pages", filename, len(pages))
+        logger.info("Parsed '%s' → %d pages (%.2fs)", filename, len(pages), t_parse)
 
         # ── Chunk ────────────────────────────────────────────────────────────
+        t_chunk_start = time.perf_counter()
         chunks = chunk_documents(pages)
-        logger.info("Chunked '%s' → %d chunks", filename, len(chunks))
+        t_chunk = time.perf_counter() - t_chunk_start
+        logger.info("Chunked '%s' → %d chunks (%.2fs)", filename, len(chunks), t_chunk)
 
         # ── Embed + Store ────────────────────────────────────────────────────
+        t_embed_start = time.perf_counter()
         try:
             n_stored = store_chunks(chunks)
+            t_embed = time.perf_counter() - t_embed_start
             total_chunks += n_stored
             results.append({
                 "filename": filename,
                 "status": "success",
                 "pages": len(pages),
                 "chunks_stored": n_stored,
+                "timing_seconds": {
+                    "save": round(t_save, 3),
+                    "parse": round(t_parse, 3),
+                    "chunk": round(t_chunk, 3),
+                    "embed_and_store": round(t_embed, 3),
+                    "total": round(t_save + t_parse + t_chunk + t_embed, 3),
+                },
             })
-            logger.info("Stored %d chunks for '%s'", n_stored, filename)
+            logger.info(
+                "Stored %d chunks for '%s' in %.2fs (embed+store=%.2fs)",
+                n_stored, filename, t_save + t_parse + t_chunk + t_embed, t_embed,
+            )
         except Exception as exc:
             logger.error("Failed to store chunks for '%s': %s", filename, exc)
             results.append({"filename": filename, "status": "error", "reason": f"Storage error: {exc}"})

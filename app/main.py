@@ -10,7 +10,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import upload, query, book_context, competitor, author_docs, chapter_outline
+from app.routes import upload, query, book_context, author_docs, chapter_outline, framework, export
+from app.routes.competitor import market_router, competitor_router
 from app.utils.config import get_settings
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -30,11 +31,13 @@ async def lifespan(app: FastAPI):
     os.makedirs(settings.chroma_persist_dir, exist_ok=True)
     os.makedirs(settings.competitor_upload_dir, exist_ok=True)
     os.makedirs(settings.author_upload_dir, exist_ok=True)
+    os.makedirs(settings.exports_dir, exist_ok=True)
     logger.info("RAG system starting up.")
     logger.info("Upload dir          : %s", settings.upload_dir)
     logger.info("Author docs dir     : %s", settings.author_upload_dir)
     logger.info("Competitor dir      : %s", settings.competitor_upload_dir)
     logger.info("ChromaDB dir        : %s", settings.chroma_persist_dir)
+    logger.info("Exports dir         : %s", settings.exports_dir)
     logger.info("Embedding model     : %s (%s)", settings.embedding_model, settings.embedding_provider)
     logger.info("LLM model           : %s", settings.ollama_model)
     logger.info("Chunk strategy      : %s (size=%d, overlap=%d)", settings.chunk_strategy, settings.chunk_size, settings.chunk_overlap)
@@ -69,9 +72,12 @@ app.add_middleware(
 app.include_router(upload.router)
 app.include_router(query.router)
 app.include_router(book_context.router)
-app.include_router(competitor.router)
+app.include_router(market_router)       # Market & Research Analysis (primary)
+app.include_router(competitor_router)   # Competitor Analysis (legacy, backward-compat)
 app.include_router(author_docs.router)
 app.include_router(chapter_outline.router)
+app.include_router(framework.router)
+app.include_router(export.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

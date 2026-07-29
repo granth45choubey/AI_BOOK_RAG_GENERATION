@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Modular RAG Backend
 
 A production-ready **Retrieval-Augmented Generation** (RAG) backend built with:
@@ -98,6 +97,41 @@ Open your browser at:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 - **Health check**: http://localhost:8000/health
+
+### Step 6 — Start the frontend (new UI)
+
+In a **second terminal**:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open **http://localhost:3000** for the BookGen AI workspace.
+
+The frontend connects to the FastAPI backend at `http://localhost:8000` by default.
+Override in **Settings → Backend API URL**, or set `NEXT_PUBLIC_API_URL` in `frontend/.env.local`.
+
+> The legacy Streamlit UI (`streamlit run streamlit_app.py`) still works as a fallback.
+
+---
+
+## Frontend Architecture
+
+The new UI lives in `frontend/` — a **Next.js 16 + TypeScript + Tailwind + shadcn-style components** SPA.
+
+| Route | Module |
+|---|---|
+| `/` | Home — create or open a project |
+| `/documents` | Upload knowledge base files |
+| `/author-documents` | High-priority author materials |
+| `/book-context` | Title, audience, tone & goals |
+| `/outline` | Chapter outline editor + live preview |
+| `/market-analysis` | Competitor & research analysis |
+| `/frameworks` | Generate & select book frameworks |
+| `/generate` | Chapter-by-chapter book generation |
+| `/settings` | Query params & API URL |
 
 ---
 
@@ -248,7 +282,3 @@ python test_api.py
 | `model not found` | Run `ollama pull llama3.1:8b` and `ollama pull nomic-embed-text` |
 | ChromaDB errors | Delete `./chroma_db` folder and restart |
 | `pymupdf` import error | Run `pip install pymupdf` |
-=======
-# AI_BOOK_RAG_GENERATION
-AI-powered book generation system using RAG, enabling users to transform documents, research papers, and context into structured, editable books.
->>>>>>> c0be8fe73b61c6dd92db10ab6052085c928befc8

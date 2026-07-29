@@ -6,6 +6,9 @@ and returns an LLM-generated answer with source citations.
 """
 from __future__ import annotations
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, status
@@ -14,6 +17,8 @@ from pydantic import BaseModel, Field
 from app.services.query_service import answer_query
 
 router = APIRouter(prefix="/query", tags=["Query"])
+
+_query_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="query_gen")
 
 
 # ── Request / Response schemas ────────────────────────────────────────────────
@@ -56,7 +61,7 @@ class QueryResponse(BaseModel):
     response_model=QueryResponse,
     status_code=status.HTTP_200_OK,
 )
-def query_documents(body: QueryRequest):
+async def query_documents(body: QueryRequest):
     """
     Ask a question against the ingested documents.
 
@@ -64,11 +69,14 @@ def query_documents(body: QueryRequest):
     along with source citations and the raw retrieved chunks.
     """
     try:
-        result = answer_query(
+        loop = asyncio.get_running_loop()
+        fn = partial(
+            answer_query,
             question=body.question,
             top_k=body.top_k,
             source_filter=body.source_filter,
         )
+        result = await loop.run_in_executor(_query_executor, fn)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

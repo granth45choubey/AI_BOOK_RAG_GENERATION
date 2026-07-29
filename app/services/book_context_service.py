@@ -15,7 +15,7 @@ import json
 import logging
 from typing import Optional
 
-from app.rag_pipeline.embedder import get_embedding_function
+from app.rag_pipeline.embedder import embed_documents
 from app.rag_pipeline.retriever import get_collection
 from app.utils.config import get_settings
 
@@ -169,8 +169,7 @@ def create_book_context(
 
     context_text = _build_context_text(data)
 
-    ef = get_embedding_function()
-    vector = ef.embed_documents([context_text])[0]
+    vector = embed_documents([context_text])[0]
 
     collection = get_collection()
     collection.upsert(
